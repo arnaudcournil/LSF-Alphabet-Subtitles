@@ -221,13 +221,13 @@ def predict(rgb_frame):
         data_model_1 = scaler_1.transform([preprocessed])
         y_pred_1 = best_model_1.predict_proba(data_model_1)
         entropy_1 = -np.sum(np.clip(y_pred_1[0], 1e-10, 1) * np.log(np.clip(y_pred_1[0], 1e-10, 1))) / math.log(len(y_pred_1[0]))
-        if entropy_1 > 0.7:
+        if entropy_1 > 0.8:
             return None
         
         data_model_2 = scaler_2.transform([np.array([[lm.x, lm.y, lm.z] for lm in detection.hand_landmarks[0]]).flatten()])
         y_pred_2 = best_model_2.predict_proba(data_model_2)
         entropy_2 = -np.sum(np.clip(y_pred_2[0], 1e-10, 1) * np.log(np.clip(y_pred_2[0], 1e-10, 1))) / math.log(len(y_pred_2[0]))
-        if  entropy_2 > 0.8:
+        if  entropy_2 > 0.9:
             return None
 
         data_model_3 = np.concatenate((y_pred_1, y_pred_2), axis=1)
