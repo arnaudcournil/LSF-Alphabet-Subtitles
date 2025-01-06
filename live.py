@@ -1,3 +1,6 @@
+# A modifier : utiliser Yolo pour la detection
+USE_YOLO = False
+
 import cv2
 import numpy as np
 import joblib
@@ -16,14 +19,15 @@ import torch
 import sys
 from pathlib import Path
 
-file = Path(__file__).resolve()
-parent, root = file.parent, file.parents[0]
-print(str(root / 'src' / 'yolov7'))
-sys.path.append(str(root / 'src' / 'yolov7'))
-from src.yolov7.utils.general import non_max_suppression, scale_coords
-from src.yolov7.utils.plots import plot_one_box
-from src.yolov7.utils.torch_utils import select_device
-from src.yolov7.models.experimental import attempt_load
+if USE_YOLO:
+    file = Path(__file__).resolve()
+    parent, root = file.parent, file.parents[0]
+    print(str(root / 'src' / 'yolov7'))
+    sys.path.append(str(root / 'src' / 'yolov7'))
+    from src.yolov7.utils.general import non_max_suppression, scale_coords
+    from src.yolov7.utils.plots import plot_one_box
+    from src.yolov7.utils.torch_utils import select_device
+    from src.yolov7.models.experimental import attempt_load
 
 ###  Loads models and dico
 
@@ -44,21 +48,22 @@ best_model_3 = joblib.load("best_model_3.pkl")
 ## Yolo  v7
 
 # Model settings for YOLOv7
-weights = 'best.pt'  # path to trained weights
-device = "cuda" if torch.cuda.is_available() else "cpu"
-conf_thres = 0.25
-iou_thres = 0.45
-img_size = 640
+if USE_YOLO:
+    weights = 'best.pt'  # path to trained weights
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    conf_thres = 0.25
+    iou_thres = 0.45
+    img_size = 640
 
-# Load YOLO model
-def load_model(weights='best.pt', device=''):
-    device = select_device(device)
-    yolo_model = attempt_load(weights, map_location=device)
-    stride = int(yolo_model.stride.max())
-    names = yolo_model.module.names if hasattr(yolo_model, 'module') else yolo_model.names
-    return yolo_model, stride, names, device
+    # Load YOLO model
+    def load_model(weights='best.pt', device=''):
+        device = select_device(device)
+        yolo_model = attempt_load(weights, map_location=device)
+        stride = int(yolo_model.stride.max())
+        names = yolo_model.module.names if hasattr(yolo_model, 'module') else yolo_model.names
+        return yolo_model, stride, names, device
 
-yolo_model, stride, names, device = load_model(weights, device)
+    yolo_model, stride, names, device = load_model(weights, device)
 
 ## Subtitiles prediction
 
@@ -392,66 +397,75 @@ def tokens_to_text(tokens):
     return capitalize_sentences(model.restore_punctuation(" ".join(tokens)))
 
 ### YOLO Detection
-def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
-    shape = img.shape[:2]
-    if isinstance(new_shape, int):
-        new_shape = (new_shape, new_shape)
+if USE_YOLO:
+    def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
+        shape = img.shape[:2]  # Taille actuelle (hauteur, largeur)
+        if isinstance(new_shape, int):
+            new_shape = (new_shape, new_shape)
 
-    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-    if not scaleup:
-        r = min(r, 1.0)
+        # Ratio de redimensionnement
+        r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+        if not scaleup:  # Éviter le suréchantillonnage
+            r = min(r, 1.0)
 
-    ratio = r, r
-    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
-    if auto:
-        dw, dh = np.mod(dw, stride), np.mod(dh, stride)
-    elif scaleFill:
-        dw, dh = 0.0, 0.0
-        new_unpad = (new_shape[1], new_shape[0])
-        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]
+        ratio = (r, r)
+        new_unpad = (int(shape[1] * r), int(shape[0] * r))
+        dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
 
-    dw /= 2
-    dh /= 2
+        if auto:  # Ajustement au stride
+            dw, dh = dw % stride, dh % stride
+        elif scaleFill:  # Étirement forcé
+            dw, dh = 0, 0
+            new_unpad = new_shape
+            ratio = (new_shape[1] / shape[1], new_shape[0] / shape[0])
 
-    if shape[::-1] != new_unpad:
-        img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
-    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
-    return img, ratio, (dw, dh)
+        dw, dh = dw / 2, dh / 2  # Division des marges
 
-def yolo_detection(frame):
-    # YOLO processing
-    original_shape = frame.shape
-    img = letterbox(frame, img_size, stride=stride)[0]
-    img = img[:, :, ::-1].transpose(2, 0, 1)
-    img = np.ascontiguousarray(img)
-    img = torch.from_numpy(img).to(device)
-    img = img.float()
-    img /= 255.0
-    if img.ndimension() == 3:
-        img = img.unsqueeze(0)
-    
-    # YOLO inference
-    with torch.no_grad():
-        pred = yolo_model(img)[0]
-    pred = non_max_suppression(pred, conf_thres, iou_thres)
-    
-    # Process YOLO detections
-    for i, det in enumerate(pred):
-        if len(det):
-            det[:, :4] = scale_coords(img.shape[2:], det[:, :4], original_shape).round()
-            
-            for *xyxy, conf, cls in reversed(det):
-                x1, y1, x2, y2 = xyxy
-                x1 = np.clip(x1 - 0.5 * (x2 - x1) , 0, original_shape[1])
-                x2 = np.clip(x2 + 0.5 * (x2 - x1) , 0, original_shape[1])
-                y1 = np.clip(y1 - 0.5 * (y2 - y1) , 0, original_shape[0])
-                y2 = np.clip(y2 + 0.5 * (y2 - y1) , 0, original_shape[0])
-                return map(int, (x1, y1, x2, y2))
-            
-    return 0, 0, 0, 0
+        # Redimensionnement
+        if shape[::-1] != new_unpad:
+            img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+
+        # Remplissage avec des bordures
+        top, bottom = int(dh), int(dh + 0.5)
+        left, right = int(dw), int(dw + 0.5)
+        img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+        return img, ratio, (dw, dh)
+
+    def yolo_detection(frame):
+        # Prétraitement - Conversion de l'image
+        original_shape = frame.shape[:2]
+        img, ratio, (dw, dh) = letterbox(frame, img_size, stride=stride)
+        img = np.ascontiguousarray(img[:, :, ::-1].transpose(2, 0, 1))  # BGR à RGB, HWC à CHW
+        img = torch.from_numpy(img).to(device).float() / 255.0  # Conversion en Tensor et normalisation
+
+        # Ajout de la dimension batch si nécessaire
+        if img.ndimension() == 3:
+            img = img.unsqueeze(0)
+
+        # Inférence YOLO
+        with torch.no_grad():
+            pred = yolo_model(img)[0]  # Résultats bruts du modèle
+        pred = non_max_suppression(pred, conf_thres, iou_thres)  # Suppression des non-maxima
+
+        # Traitement des détections
+        if pred:
+            det = pred[0]  # Supposons qu'une seule image est traitée à la fois
+            if len(det):
+                # Mise à l'échelle des coordonnées pour correspondre à la taille originale de l'image
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], original_shape).round()
+
+                # Extraction et ajustement des coordonnées des objets détectés
+                for *xyxy, conf, cls in det:
+                    x1, y1, x2, y2 = xyxy
+                    w, h = x2 - x1, y2 - y1
+                    x1 = np.clip(x1 - 0.5 * w, 0, original_shape[1])
+                    x2 = np.clip(x2 + 0.5 * w, 0, original_shape[1])
+                    y1 = np.clip(y1 - 0.5 * h, 0, original_shape[0])
+                    y2 = np.clip(y2 + 0.5 * h, 0, original_shape[0])
+                    return map(int, (x1, y1, x2, y2))
+
+        # Retourner des valeurs par défaut si aucune détection
+        return 0, 0, 0, 0
 
 ## Main function of the code
 def main():
@@ -485,7 +499,7 @@ def main():
             with ThreadPoolExecutor() as executor:
                 prediction = executor.submit(predict, rgb_frame)
 
-                if prediction_yolo is None:
+                if USE_YOLO and prediction_yolo is None:
                     prediction_yolo = executor.submit(yolo_detection, frame)
 
                 while not prediction.done():
@@ -499,7 +513,7 @@ def main():
                         subtitles = prediction_tokens_to_text.result()
                         prediction_tokens_to_text = None
 
-                    if prediction_yolo.done():
+                    if USE_YOLO and prediction_yolo.done():
                         x1, y1, x2, y2 = prediction_yolo.result()
                         prediction_yolo = executor.submit(yolo_detection, frame)
 
