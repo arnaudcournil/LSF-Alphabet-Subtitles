@@ -10,7 +10,20 @@ import time
 import re
 from unidecode import unidecode
 from deepmultilingualpunctuation import PunctuationModel
+import torch
 
+### Import yolo files
+import sys
+from pathlib import Path
+
+file = Path(__file__).resolve()
+parent, root = file.parent, file.parents[0]
+print(str(root / 'src' / 'yolov7'))
+sys.path.append(str(root / 'src' / 'yolov7'))
+from src.yolov7.utils.general import non_max_suppression, scale_coords
+from src.yolov7.utils.plots import plot_one_box
+from src.yolov7.utils.torch_utils import select_device
+from src.yolov7.models.experimental import attempt_load
 
 ###  Loads models and dico
 
@@ -27,6 +40,25 @@ scaler_2 = joblib.load("scaler_2.pkl")
 best_model_1 = joblib.load("best_model_1.pkl")
 best_model_2 = joblib.load("best_model_2.pkl")
 best_model_3 = joblib.load("best_model_3.pkl")
+
+## Yolo  v7
+
+# Model settings for YOLOv7
+weights = 'best.pt'  # path to trained weights
+device = "cuda" if torch.cuda.is_available() else "cpu"
+conf_thres = 0.25
+iou_thres = 0.45
+img_size = 640
+
+# Load YOLO model
+def load_model(weights='best.pt', device=''):
+    device = select_device(device)
+    yolo_model = attempt_load(weights, map_location=device)
+    stride = int(yolo_model.stride.max())
+    names = yolo_model.module.names if hasattr(yolo_model, 'module') else yolo_model.names
+    return yolo_model, stride, names, device
+
+yolo_model, stride, names, device = load_model(weights, device)
 
 ## Subtitiles prediction
 
@@ -221,13 +253,13 @@ def predict(rgb_frame):
         data_model_1 = scaler_1.transform([preprocessed])
         y_pred_1 = best_model_1.predict_proba(data_model_1)
         entropy_1 = -np.sum(np.clip(y_pred_1[0], 1e-10, 1) * np.log(np.clip(y_pred_1[0], 1e-10, 1))) / math.log(len(y_pred_1[0]))
-        if entropy_1 > 0.8:
+        if entropy_1 > 0.95:
             return None
         
         data_model_2 = scaler_2.transform([np.array([[lm.x, lm.y, lm.z] for lm in detection.hand_landmarks[0]]).flatten()])
         y_pred_2 = best_model_2.predict_proba(data_model_2)
         entropy_2 = -np.sum(np.clip(y_pred_2[0], 1e-10, 1) * np.log(np.clip(y_pred_2[0], 1e-10, 1))) / math.log(len(y_pred_2[0]))
-        if  entropy_2 > 0.9:
+        if  entropy_2 > 0.95:
             return None
 
         data_model_3 = np.concatenate((y_pred_1, y_pred_2), axis=1)
@@ -359,6 +391,68 @@ def capitalize_sentences(text):
 def tokens_to_text(tokens):
     return capitalize_sentences(model.restore_punctuation(" ".join(tokens)))
 
+### YOLO Detection
+def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
+    shape = img.shape[:2]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:
+        r = min(r, 1.0)
+
+    ratio = r, r
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+    if auto:
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)
+    elif scaleFill:
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]
+
+    dw /= 2
+    dh /= 2
+
+    if shape[::-1] != new_unpad:
+        img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
+    return img, ratio, (dw, dh)
+
+def yolo_detection(frame):
+    # YOLO processing
+    original_shape = frame.shape
+    img = letterbox(frame, img_size, stride=stride)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)
+    img = np.ascontiguousarray(img)
+    img = torch.from_numpy(img).to(device)
+    img = img.float()
+    img /= 255.0
+    if img.ndimension() == 3:
+        img = img.unsqueeze(0)
+    
+    # YOLO inference
+    with torch.no_grad():
+        pred = yolo_model(img)[0]
+    pred = non_max_suppression(pred, conf_thres, iou_thres)
+    
+    # Process YOLO detections
+    for i, det in enumerate(pred):
+        if len(det):
+            det[:, :4] = scale_coords(img.shape[2:], det[:, :4], original_shape).round()
+            
+            for *xyxy, conf, cls in reversed(det):
+                x1, y1, x2, y2 = xyxy
+                x1 = np.clip(x1 - 0.5 * (x2 - x1) , 0, original_shape[1])
+                x2 = np.clip(x2 + 0.5 * (x2 - x1) , 0, original_shape[1])
+                y1 = np.clip(y1 - 0.5 * (y2 - y1) , 0, original_shape[0])
+                y2 = np.clip(y2 + 0.5 * (y2 - y1) , 0, original_shape[0])
+                return map(int, (x1, y1, x2, y2))
+            
+    return 0, 0, 0, 0
+
 ## Main function of the code
 def main():
     cap = cv2.VideoCapture(0)
@@ -369,6 +463,8 @@ def main():
     confirmed = []
     prediction_subtitles = None
     prediction_tokens_to_text = None
+    prediction_yolo = None
+    x1, y1, x2, y2 = 0, 0, 0, 0
     subtitles =  ""
 
     if not cap.isOpened():
@@ -380,13 +476,17 @@ def main():
         last_prediction = ""
         while True:
             ret, frame = cap.read()
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_resized = frame[y1:y2, x1:x2] if (x1, y1, x2, y2) != (0, 0, 0, 0) else frame
+            rgb_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
             if not ret:
                 print("Erreur : Impossible de lire la vidéo.")
                 break
 
             with ThreadPoolExecutor() as executor:
                 prediction = executor.submit(predict, rgb_frame)
+
+                if prediction_yolo is None:
+                    prediction_yolo = executor.submit(yolo_detection, frame)
 
                 while not prediction.done():
                     if prediction_subtitles is not None and prediction_subtitles.done():
@@ -398,6 +498,14 @@ def main():
                     if prediction_tokens_to_text is not None and prediction_tokens_to_text.done():
                         subtitles = prediction_tokens_to_text.result()
                         prediction_tokens_to_text = None
+
+                    if prediction_yolo.done():
+                        x1, y1, x2, y2 = prediction_yolo.result()
+                        prediction_yolo = executor.submit(yolo_detection, frame)
+
+                    if (x1, y1, x2, y2) != (0, 0, 0, 0):
+                        # Draw rectangle
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
                     if current_label is not None:
                         cv2.putText(frame, f"Prediction: {current_label}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
@@ -440,7 +548,7 @@ def main():
             current_label = prediction.result()
 
             if current_label != last_prediction:
-                last_prediction  = current_label
+                last_prediction = current_label
                 prediction_start  =  time.time()
 
     finally:

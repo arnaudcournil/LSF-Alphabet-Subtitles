@@ -11,10 +11,10 @@ import torch
 import numpy as np
 import mediapipe as mp
 import joblib
-from utils.general import non_max_suppression, scale_coords
-from utils.plots import plot_one_box
-from utils.torch_utils import select_device
-from models.experimental import attempt_load
+from src.yolov7.utils.general import non_max_suppression, scale_coords
+from src.yolov7.utils.plots import plot_one_box
+from src.yolov7.utils.torch_utils import select_device
+from src.yolov7.models.experimental import attempt_load
 
 class SignPredictor:
     def __init__(self):
