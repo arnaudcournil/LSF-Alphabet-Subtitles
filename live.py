@@ -394,7 +394,7 @@ def capitalize_sentences(text):
     return re.sub(r'(^|(?<=[.!?…])\s+)([a-z])', lambda match: match.group(1) + match.group(2).upper(), text)
 
 def tokens_to_text(tokens):
-    return capitalize_sentences(model.restore_punctuation(" ".join(tokens)))
+    return re.sub(r"\b([JjLlCc]) (\w+)", r"\1'\2", capitalize_sentences(model.restore_punctuation(" ".join(tokens))))
 
 ### YOLO Detection
 if USE_YOLO:
