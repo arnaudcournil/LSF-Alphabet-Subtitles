@@ -22,12 +22,10 @@ from pathlib import Path
 if USE_YOLO:
     file = Path(__file__).resolve()
     parent, root = file.parent, file.parents[0]
-    print(str(root / 'src' / 'yolov7'))
-    sys.path.append(str(root / 'src' / 'yolov7'))
-    from src.yolov7.utils.general import non_max_suppression, scale_coords
-    from src.yolov7.utils.plots import plot_one_box
-    from src.yolov7.utils.torch_utils import select_device
-    from src.yolov7.models.experimental import attempt_load
+    sys.path.append(str(root / 'yolo_src' / 'yolov7'))
+    from yolo_src.yolov7.utils.general import non_max_suppression, scale_coords
+    from yolo_src.yolov7.utils.torch_utils import select_device
+    from yolo_src.yolov7.models.experimental import attempt_load
 
 ###  Loads models and dico
 
