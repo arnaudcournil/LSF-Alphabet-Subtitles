@@ -1,5 +1,5 @@
 # A modifier : utiliser Yolo pour la detection
-USE_YOLO = True
+USE_YOLO = False
 
 import cv2
 import numpy as np
