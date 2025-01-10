@@ -1,5 +1,9 @@
 # Projet Machine Learning : Transcription en Direct de la Langue des Signes Française (LSF) 
 
+<div style="text-align: center;">
+  <img src="preview.jpg" alt="Preview">
+</div>
+
 ## Description 
 
 Ce projet vise à développer une architecture capable de transcrire en temps réel les lettres signées de la Langue des Signes Française (LSF) capturées par une caméra. L'objectif secondaire est de transcrire des phrases complètes à partir des lettres détectées. Ce projet a été conçu pour faciliter la communication entre les personnes malentendantes et celles ne connaissant pas la LSF.
