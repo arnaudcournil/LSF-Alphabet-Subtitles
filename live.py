@@ -1,5 +1,5 @@
 # A modifier : utiliser Yolo pour la detection
-USE_YOLO = False
+USE_YOLO = True
 
 import cv2
 import numpy as np
@@ -430,7 +430,7 @@ if USE_YOLO:
         return img, ratio, (dw, dh)
 
     def yolo_detection(frame):
-        # Prétraitement - Conversion de l'image
+        # Prétraitement - Conversion de l'image        
         original_shape = frame.shape[:2]
         img, ratio, (dw, dh) = letterbox(frame, img_size, stride=stride)
         img = np.ascontiguousarray(img[:, :, ::-1].transpose(2, 0, 1))  # BGR à RGB, HWC à CHW
@@ -461,6 +461,7 @@ if USE_YOLO:
                     y1 = np.clip(y1 - 0.5 * h, 0, original_shape[0])
                     y2 = np.clip(y2 + 0.5 * h, 0, original_shape[0])
                     return map(int, (x1, y1, x2, y2))
+        
 
         # Retourner des valeurs par défaut si aucune détection
         return 0, 0, 0, 0
