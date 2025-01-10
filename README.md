@@ -1,92 +1,111 @@
-# Projet Machine Learning : Transcription en Direct de la Langue des Signes Française (LSF)
+# Projet Machine Learning : Transcription en Direct de la Langue des Signes Française (LSF) 
 
-## Introduction
-Ce projet vise à développer un système permettant de transcrire en temps réel les lettres de la Langue des Signes Française (LSF) captées via une webcam. L'objectif final est de transformer les séquences de lettres en phrases cohérentes.  
-Étant donné l'absence de datasets disponibles pour la LSF, nous avons créé notre propre base de données à partir de photos et de captures d'écrans.
+## Description 
+
+Ce projet vise à développer une architecture capable de transcrire en temps réel les lettres signées de la Langue des Signes Française (LSF) capturées par une caméra. L'objectif secondaire est de transcrire des phrases complètes à partir des lettres détectées. Ce projet a été conçu pour faciliter la communication entre les personnes malentendantes et celles ne connaissant pas la LSF.
+
+## Fonctionnalités principales 
+ 
+- Détection des articulations de la main avec **MediaPipe** .
+
+- Extraction des caractéristiques géométriques des gestes (angles, orientation de la main, relation entre doigts).
+
+- Classification des lettres signées à l'aide de modèles de Machine Learning (KNN, Random Forest, Logistic Regression).
+
+- Combinaison des prédictions pour améliorer la précision.
+
+- Algorithme de segmentation des mots pour générer des phrases cohérentes.
+ 
+- Intégration expérimentale de **YOLOv7**  pour une détection améliorée des mains. (Optionnel, désactivé par défault)
+
+## Résultats obtenus 
+ 
+- Précision moyenne des modèles testés : 93 % sur les données de test.
+
+- Segmentation des mots : Le meilleur algorithme a identifié correctement environ 69 % des mots.
+ 
+- Détection des mains avec YOLOv7 :
+  - Précision : 80 %
+
+  - mAP@0.5 : 70 %
+
+## Structure du projet 
+  
+- **Notebook d'entrainement des modèles de detection des lettres**  : letterdetect.ipynb
+
+- **Notebook de test de la segmentation et la reconstruction syntaxique des phrases**  : reformerphrase.ipynb
+
+- **Notebook d'entrainement de YOLOv7**  : yolo_src/train.ipynb
+
+- **Code final** : live.py
+  
+## Prérequis 
+
+- Python 3.9+
+ 
+- Bibliothèques requises (listées dans `requirements.txt`):
+  - Mediapipe
+
+  - Scikit-learn
+
+  - Numpy, Pandas
+
+  - Pytorch (pour YOLOv7)
+
+## Installation 
+ 
+1. Clonez ce dépôt :
+
+```bash
+git clone https://github.com/arnaudcournil/LSF-Alphabet-Subtitles.git
+cd LSF-Alphabet-Subtitles
+```
+ 
+2. Installez les dépendances :
+
+```bash
+pip install -r requirements.txt
+```
+
+## Utilisation 
+ 
+1. Lancez la transcription en temps réel :
+
+```bash
+python live.py
+```
+ 
+2. Activez l'option YOLOv7 en modifiant le booléen `USE_YOLO` dans `live.py`.
+
+## Limites 
+
+- Charge computationnelle élevée avec YOLOv7, nécessitant des GPU performants.
+
+- Base de données limitée (339 images), ce qui peut restreindre la généralisation du modèle.
+
+## Perspectives d'amélioration 
+
+- Création d'un dataset plus étendu et diversifié.
+
+- Développement d'un modèle basé sur la reconnaissance de mots complets plutôt que de lettres.
+
+- Optimisation pour les dispositifs à faible puissance.
+
+## Auteurs 
+
+- Laurent Vong
+
+- Arnaud Cournil
+
+- Maxime Chappuis
+
+## Sources et Références 
+
+- Dataset utilisé : COCO-Hand, TV-Hand
+ 
+- Documentation MediaPipe : [Guide de détection des points de repère de la main](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker?hl=fr)
+
+- Vidéos d'entraînement : Voir la section "Sources" du rapport.
+
 
 ---
-
-## Structure du Projet
-
-### 1. Base de Données
-- **Création du Dataset** :  
-  - Photographies des membres de l'équipe réalisant chaque signe de l'alphabet.
-  - Captures d'écran de vidéos YouTube montrant des lettres en LSF.  
-- **Nettoyage des données** :  
-  - Suppression des images de mauvaise qualité pour réduire les biais lors de l'entraînement.  
-- **Résultat final** : 339 images étiquetées représentant les lettres de l'alphabet en LSF.
-
----
-
-### 2. Approches et Modèles Utilisés
-#### 2.1. MediaPipe
-- Détection des articulations principales de la main (21 points clés) à partir des images.  
-- Extraction des coordonnées des points d'intérêt pour les étapes suivantes.
-
-#### 2.2. Prétraitement des Données
-- Étapes spécifiques (détails à compléter dans le code source).  
-
-#### 2.3. Modèle Simple
-- Entraînement d'un modèle de classification simple pour la prédiction des lettres.  
-
-#### 2.4. Combinaison de Modèles
-- Fusion de plusieurs modèles pour améliorer la précision des prédictions.
-
-#### 2.5. Algorithme de Séparation des Lettres
-- Détection des limites entre les lettres pour produire des mots ou phrases lisibles.
-
----
-
-### 3. Résultats
-#### 3.1. Modèle Simple
-- **Performances** : Résultats à compléter (accuracy, précision, rappel, etc.).  
-
-#### 3.2. Modèles Combinés
-- Comparaison des résultats par rapport au modèle simple.  
-
-#### 3.3. Algorithme de Séparation des Lettres
-- Tests de robustesse avec des phrases contenant ou non des espaces.
-
----
-
-### 4. Nouvelle Approche : YOLOv7 + MediaPipe
-Pour améliorer les performances :
-- **YOLOv7** : Détection rapide et précise des mains dans une image.  
-- **MediaPipe** : Segmentation fine des articulations de la main.  
-
-#### Processus :
-1. **Entraînement YOLOv7** : Sur le dataset COCO-Hand (25 000 images annotées).  
-2. **Détection en temps réel** :  
-   - YOLOv7 : Détection des boîtes englobantes des mains.  
-   - MediaPipe : Segmentation des points clés des mains.  
-3. **Prédiction des lettres** : Utilisation des modèles déjà entraînés.  
-
-#### Points forts :
-- Combinaison de la détection rapide (YOLOv7) et de la segmentation fine (MediaPipe).  
-#### Limites :
-- Complexité computationnelle élevée, nécessitant des ressources GPU importantes.
-
----
-
-## Conclusion
-Ce projet démontre la faisabilité d'un système de transcription en temps réel de la LSF à partir de données limitées. Une optimisation supplémentaire est nécessaire pour améliorer les performances en conditions réelles.
-
----
-
-## Ressources et Références
-### Vidéos Utilisées pour le Dataset :
-- [Vidéo 1](https://youtu.be/jg5zXcN2tlY?si=d5CBL6WYuoOm_5nh)  
-- [Vidéo 2](https://youtu.be/QrOdNX32HyA?si=vo3HW_GFmHjQBC-n)  
-- [Vidéo 3](https://youtu.be/HGGmrxeZEGQ?si=xQCuBRZUaf3ib4DB)  
-- [Vidéo 4](https://youtu.be/H_DZk-fDDV8?si=UiuCONzfeks4ZMsk)  
-- [Vidéo 5](https://youtu.be/KfExLSjNGc4?si=KUXUovJ9i6MexMor)  
-- [Vidéo 6](https://youtu.be/sK3NyDGAO48?si=4l587c_Gx-DCd2V5)  
-- [Vidéo 7](https://youtu.be/XQEFR5YmIP4?si=ey5qbTOKjDEOyTPI)  
-- [Vidéo 8](https://youtu.be/4QPmDdTcX6I?si=7NqMxjR7P2LIXFIa)  
-
----
-
-## Auteurs
-- Laurent Vong  
-- Arnaud Cournil  
-- Maxime Chappuis  
